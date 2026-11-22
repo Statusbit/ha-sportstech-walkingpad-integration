@@ -1,46 +1,47 @@
 start:
-  name: Start Belt
-  description: Start the WalkingPad belt.
-  # NEU: Optionaler Parameter, um beim Start direkt einen Benutzer festzulegen
+  name: Starten
+  description: Startet das Laufband und ordnet optional einen Benutzer zu.
   fields:
     user:
-      name: User
-      description: Optional workout user name (e.g. Flo or Gast).
-      required: false
+      name: Benutzer
+      description: Optionaler Benutzername für das Training.
+      example: Flo
       selector:
         text:
 
 stop:
-  name: Stop Belt
-  description: Stop the WalkingPad belt.
+  name: Stoppen
+  description: Stoppt das Laufband.
 
 pause:
-  name: Pause Belt
-  description: Pause the WalkingPad belt (only supported on compatible devices).
+  name: Pausieren
+  description: Pausiert das Laufband.
 
 set_speed:
-  name: Set Speed
-  description: Set the belt speed.
+  name: Geschwindigkeit setzen
+  description: Setzt die Laufbandgeschwindigkeit in km/h.
   fields:
     speed:
-      name: Speed
-      description: Target speed in km/h (e.g. 3.5). Clamped to device limits.
+      name: Geschwindigkeit
+      description: Zielgeschwindigkeit in km/h.
       required: true
+      example: 4.5
       selector:
         number:
           min: 0
           max: 25
           step: 0.1
-          unit_of_measurement: "km/h"
+          unit_of_measurement: km/h
 
 set_incline:
-  name: Set Incline
-  description: Set the belt incline level, keeping the current speed.
+  name: Neigung setzen
+  description: Setzt die Neigung des Laufbands in Prozent.
   fields:
     incline:
-      name: Incline
-      description: Target incline level (0–15). Clamped to device max.
+      name: Neigung
+      description: Zielneigung in Prozent.
       required: true
+      example: 3
       selector:
         number:
           min: 0
@@ -48,14 +49,14 @@ set_incline:
           step: 1
           unit_of_measurement: "%"
 
-# NEU: Service zum Zuweisen eines Benutzers während oder nach dem Training
 assign_user:
-  name: Assign Workout User
-  description: Assign the active or last completed workout to a user.
+  name: Benutzer zuweisen
+  description: Weist das aktuelle oder zuletzt beendete Workout einem Benutzer zu.
   fields:
     user:
-      name: User
-      description: Display name of an allowed Home Assistant user or Gast.
+      name: Benutzer
+      description: Name des Trainingsbenutzers.
       required: true
+      example: Flo
       selector:
         text:
