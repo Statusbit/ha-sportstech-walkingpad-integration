@@ -7,7 +7,8 @@ from typing import Any
 
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+# GEÄNDERT: Context importiert, um den drückenden Benutzer beim Start-Button zu erkennen
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -20,7 +21,8 @@ from .coordinator import WalkingPadCoordinator
 class WalkingPadButtonDescription(ButtonEntityDescription):
     """Extends ButtonEntityDescription with an async action."""
 
-    action: Any = None  # Callable[[WalkingPadCoordinator], Coroutine]
+    # GEÄNDERT: Action-Signatur nimmt jetzt zusätzlich den Context entgegen
+    action: Any = None  # Callable[[WalkingPadCoordinator, Context | None], Coroutine]
 
 
 BUTTON_DESCRIPTIONS: tuple[WalkingPadButtonDescription, ...] = (
@@ -29,21 +31,24 @@ BUTTON_DESCRIPTIONS: tuple[WalkingPadButtonDescription, ...] = (
         translation_key="start",
         name="Start",
         icon="mdi:play",
-        action=lambda coord: coord.async_start(),
+        # GEÄNDERT: Reicht self._context an coord.async_start weiter
+        action=lambda coord, ctx: coord.async_start(context=ctx),
     ),
     WalkingPadButtonDescription(
         key="stop",
         translation_key="stop",
         name="Stop",
         icon="mdi:stop",
-        action=lambda coord: coord.async_stop(),
+        # GEÄNDERT: Context-Parameter der Einheitlichkeit halber ergänzt
+        action=lambda coord, _ctx: coord.async_stop(),
     ),
     WalkingPadButtonDescription(
         key="pause",
         translation_key="pause",
         name="Pause",
         icon="mdi:pause",
-        action=lambda coord: coord.async_pause(),
+        # GEÄNDERT: Context-Parameter der Einheitlichkeit halber ergänzt
+        action=lambda coord, _ctx: coord.async_pause(),
     ),
 )
 
@@ -86,4 +91,5 @@ class WalkingPadButton(CoordinatorEntity[WalkingPadCoordinator], ButtonEntity):
         self._attr_device_info = _device_info(coordinator)
 
     async def async_press(self) -> None:
-        await self.entity_description.action(self.coordinator)
+        # GEÄNDERT: Übergibt self._context (enthält die HA-User-ID des Klickenden) an die Button-Aktion
+        await self.entity_description.action(self.coordinator, self._context)
