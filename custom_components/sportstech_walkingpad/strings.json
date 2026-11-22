@@ -3,13 +3,17 @@
     "step": {
       "confirm": {
         "title": "Sportstech WalkingPad gefunden",
-        "description": "Möchtest du {name} ({mac}) einrichten?"
+        "description": "Möchtest du {name} ({mac}) einrichten?",
+        "data": {
+          "excluded_users": "Benutzer ausschließen (z. B. Tablet, MQTT)"
+        }
       },
       "manual": {
         "title": "Sportstech WalkingPad einrichten",
         "data": {
           "mac_address": "MAC-Adresse",
-          "device_name": "Gerätename"
+          "device_name": "Gerätename",
+          "excluded_users": "Benutzer ausschließen (z. B. Tablet, MQTT)"
         }
       }
     },
@@ -18,6 +22,16 @@
     },
     "abort": {
       "already_configured": "Gerät ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "WalkingPad Benutzer konfigurieren",
+        "data": {
+          "excluded_users": "Ausgeschlossene Home-Assistant-Benutzer"
+        }
+      }
     }
   },
   "entity": {
@@ -33,6 +47,9 @@
       "speed_control": {"name": "Geschwindigkeit"},
       "incline_control": {"name": "Neigung"}
     },
+    "select": {
+      "workout_user": {"name": "Trainingsbenutzer"}
+    },
     "sensor": {
       "state": {"name": "Zustand"},
       "speed": {"name": "Geschwindigkeit"},
@@ -42,6 +59,7 @@
       "distance": {"name": "Distanz"},
       "calories": {"name": "Kalorien"},
       "steps": {"name": "Schritte"},
+      "last_workout": {"name": "Letztes Training"},
       "total_workout_time": {"name": "Gesamte Trainingszeit"},
       "total_distance": {"name": "Gesamtdistanz"},
       "total_calories": {"name": "Gesamtkalorien"},
