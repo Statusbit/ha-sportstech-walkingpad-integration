@@ -6,10 +6,20 @@ DOMAIN = "sportstech_walkingpad"
 CONF_MAC_ADDRESS = "mac_address"
 CONF_DEVICE_NAME = "device_name"
 CONF_POLL_INTERVAL = "poll_interval"
+# NEU: Schlüssel für die Liste der ausgeschlossenen HA-Benutzer-IDs in den Integration-Optionen
+CONF_EXCLUDED_USERS = "excluded_users"
 
 # Defaults
 DEFAULT_DEVICE_NAME = "WalkingPad"
 DEFAULT_POLL_INTERVAL = 5  # seconds
+
+# NEU: Feste ID und Anzeigename für den Dummy-Benutzer "Gast"
+GUEST_USER_ID = "guest"
+GUEST_USER_NAME = "Gast"
+
+# NEU: Home-Assistant-Events, die bei Abschluss oder nachträglicher Änderung eines Workouts gefeuert werden
+EVENT_WORKOUT_COMPLETED = f"{DOMAIN}_workout_completed"
+EVENT_WORKOUT_REASSIGNED = f"{DOMAIN}_workout_reassigned"
 
 # ---------------------------------------------------------------------------
 # BLE GATT UUIDs (from APK: com.fithome.bluetooth.BLEDevice)
