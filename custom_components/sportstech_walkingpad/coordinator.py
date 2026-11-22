@@ -25,17 +25,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-# GEÄNDERT: field ergänzt für Standardwerte von Dictionaries in Dataclasses
 from dataclasses import dataclass, field
-# GEÄNDERT: datetime und timezone ergänzt für Start-/Endzeitstempel von Workouts
 from datetime import datetime, timedelta, timezone
-# NEU: Any für das Dictionary-Exportformat eines WorkoutRecords
 from typing import Any
 
 from bleak import BleakClient
 from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
-# GEÄNDERT: Context importiert, um den auslösenden Benutzer bei Service-/Button-Aufrufen zu erkennen
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -49,7 +45,6 @@ from .const import (
     CMD_STOP,
     DATA_STATES,
     DOMAIN,
-    # NEU: Event- und Gast-Konstanten sowie zusätzliche Zustände importiert
     EVENT_WORKOUT_COMPLETED,
     EVENT_WORKOUT_REASSIGNED,
     FRAME_ETX,
@@ -70,8 +65,17 @@ _LOGGER = logging.getLogger(__name__)
 _POLL_TIMEOUT = 10.0   # seconds to wait for a STATE notification
 _PARAM_TIMEOUT = 5.0   # seconds to wait for a PARAM notification
 
-# NEU: Alle Zustände, die zu einer aktiven Trainingseinheit gehören
 ACTIVE_WORKOUT_STATES = {STATE_STARTING, STATE_RUNNING, STATE_PAUSED, STATE_STOPPING}
+
+
+def _empty_user_totals() -> dict[str, float]:
+    """Return a fresh zeroed accumulator dict for a workout user."""
+    return {
+        "distance": 0.0,
+        "workout_time": 0.0,
+        "calories": 0.0,
+        "steps": 0.0,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +83,6 @@ ACTIVE_WORKOUT_STATES = {STATE_STARTING, STATE_RUNNING, STATE_PAUSED, STATE_STOP
 # ---------------------------------------------------------------------------
 
 
-# NEU: Datenstruktur für ein abgeschlossenes Workout inklusive zugeordnetem Benutzer
 @dataclass
 class WorkoutRecord:
     """Represents a completed workout session."""
@@ -136,7 +139,7 @@ class WalkingPadData:
     # Peripheral state (optimistic – no feedback from device)
     light_on: bool = False
 
-    # NEU: Aktuell ausgewählter Trainingsbenutzer, Liste aller erlaubten Benutzer und letztes Workout
+    # Active user, allowed users (incl. Guest in select), and last workout
     active_user_id: str = GUEST_USER_ID
     active_user_name: str = GUEST_USER_NAME
     available_users: dict[str, str] = field(
@@ -186,7 +189,6 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
         mac: str,
         device_name: str,
         poll_interval: int = 5,
-        # NEU: Optionale Liste ausgeschlossener HA-Benutzer-IDs aus den Integration-Optionen
         excluded_user_ids: list[str] | None = None,
     ) -> None:
         super().__init__(
@@ -197,7 +199,6 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
         )
         self.mac = mac
         self.device_name = device_name
-        # NEU: Ausgeschlossene Benutzer-IDs als Set für schnelle Prüfung speichern
         self._excluded_user_ids: set[str] = set(excluded_user_ids or [])
 
         self._client: BleakClient | None = None
@@ -205,40 +206,72 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
         self._param_ready = asyncio.Event()
         self.data: WalkingPadData = WalkingPadData()
 
+        # NEU: Kumulierte Summen pro HA-Benutzer (ohne Gast): user_id -> {metric: value}
+        self.user_totals: dict[str, dict[str, float]] = {}
+
         # Wrap detection: device timer resets at 99 min 99 s (6039 s)
         self._raw_time: int = 0
         self._time_offset: int = 0
 
-        # NEU: Statusvariablen zur Erkennung von Start, Ende und manueller Zuweisung einer Session
+        # Statusvariablen zur Erkennung von Start, Ende und manueller Zuweisung einer Session
         self._session_started_at: str | None = None
         self._session_in_progress: bool = False
         self._user_assigned_for_current_session: bool = False
 
     # ------------------------------------------------------------------
-    # NEU: Benutzerverwaltung & Zuordnung
+    # Benutzerverwaltung, Summen & Zuordnung
     # ------------------------------------------------------------------
+
+    def ensure_user_totals(self, user_id: str) -> dict[str, float]:
+        """Ensure an accumulator dict exists for a non-guest user_id."""
+        if user_id == GUEST_USER_ID:
+            return _empty_user_totals()
+        if user_id not in self.user_totals:
+            self.user_totals[user_id] = _empty_user_totals()
+        return self.user_totals[user_id]
+
+    def set_restored_user_total(self, user_id: str, metric: str, value: float) -> None:
+        """Restore a persisted per-user total without overwriting higher live values."""
+        if user_id == GUEST_USER_ID:
+            return
+        totals = self.ensure_user_totals(user_id)
+        if metric not in totals:
+            totals[metric] = 0.0
+        if value > totals[metric]:
+            totals[metric] = value
+
+    def _record_workout_for_user(self, record: WorkoutRecord) -> None:
+        """Add completed workout metrics to the user's totals (skipping Guest)."""
+        if record.user_id == GUEST_USER_ID:
+            return
+        totals = self.ensure_user_totals(record.user_id)
+        totals["distance"] = round(totals["distance"] + float(record.distance_m), 2)
+        totals["workout_time"] = round(
+            totals["workout_time"] + round(record.duration_s / 60, 2), 2
+        )
+        totals["calories"] = round(totals["calories"] + float(record.calories), 2)
+        totals["steps"] = round(totals["steps"] + float(record.steps), 0)
 
     async def async_refresh_users(self) -> None:
         """Load active non-system HA users minus excluded ones, plus Guest."""
         users = await self.hass.auth.async_get_users()
         allowed: dict[str, str] = {}
         for user in users:
-            # System-Accounts und inaktive Benutzer herausfiltern
             if user.system_generated or not user.is_active:
                 continue
-            # Vom Nutzer in der Konfiguration ausgeschlossene Konten (z. B. Tablet/MQTT) überspringen
             if user.id in self._excluded_user_ids:
                 continue
             allowed[user.id] = user.name or user.id
 
-        # Erlaubte Benutzer alphabetisch sortieren und "Gast" am Ende anhängen
+        for uid in allowed:
+            self.ensure_user_totals(uid)
+
         sorted_allowed = dict(
             sorted(allowed.items(), key=lambda item: item[1].lower())
         )
         sorted_allowed[GUEST_USER_ID] = GUEST_USER_NAME
         self.data.available_users = sorted_allowed
 
-        # Falls der aktuell gewählte Benutzer gelöscht oder ausgeschlossen wurde, auf "Gast" zurückfallen
         if self.data.active_user_id not in sorted_allowed:
             self.data.active_user_id = GUEST_USER_ID
             self.data.active_user_name = GUEST_USER_NAME
@@ -263,35 +296,44 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
         """Update active user and retroactively update last completed workout if idle."""
         self.data.active_user_id = user_id
         self.data.active_user_name = user_name
-        # Merken, dass der Benutzer bewusst gewählt wurde (wird beim automatischen Start nicht überschrieben)
         if explicit:
             self._user_assigned_for_current_session = True
 
-        # Nachträgliche Zuordnung: Wenn das Band bereits gestoppt ist und ein letztes Workout vorliegt,
-        # wird dessen Benutzer ebenfalls aktualisiert und ein Event gefeuert.
         if not self._session_in_progress and self.data.last_workout is not None:
-            if self.data.last_workout.user_id != user_id:
-                self.data.last_workout.user_id = user_id
-                self.data.last_workout.user_name = user_name
+            old_user_id = self.data.last_workout.user_id
+            if old_user_id != user_id:
+                rec = self.data.last_workout
+                # Falls das letzte Workout vorher einem echten Benutzer zugeordnet war,
+                # diesen Betrag wieder abziehen und auf den neuen Benutzer (falls nicht Gast) übertragen.
+                if old_user_id != GUEST_USER_ID and old_user_id in self.user_totals:
+                    old_t = self.user_totals[old_user_id]
+                    old_t["distance"] = max(0.0, round(old_t["distance"] - float(rec.distance_m), 2))
+                    old_t["workout_time"] = max(
+                        0.0, round(old_t["workout_time"] - round(rec.duration_s / 60, 2), 2)
+                    )
+                    old_t["calories"] = max(0.0, round(old_t["calories"] - float(rec.calories), 2))
+                    old_t["steps"] = max(0.0, round(old_t["steps"] - float(rec.steps), 0))
+
+                rec.user_id = user_id
+                rec.user_name = user_name
+                self._record_workout_for_user(rec)
+
                 self.hass.bus.async_fire(
                     EVENT_WORKOUT_REASSIGNED,
                     {
                         "mac": self.mac,
                         "device_name": self.device_name,
-                        **self.data.last_workout.as_dict(),
+                        **rec.as_dict(),
                     },
                 )
 
-        # Alle verknüpften Entitäten (Select + Sensoren) sofort über die Änderung informieren
         self.async_set_updated_data(self.data)
 
     def _try_auto_assign_from_context(self, context: Context | None) -> None:
         """If started by an allowed HA user, assign them; otherwise fall back to Guest."""
         if context and context.user_id and context.user_id in self.data.available_users:
-            # Start erfolgte direkt durch einen erlaubten Benutzer (z. B. Flo in der HA-App)
             self.set_workout_user_by_id(context.user_id, explicit=True)
         elif not self._user_assigned_for_current_session:
-            # Start erfolgte über Tablet, Automation, Sprache oder ohne bekannten User -> Fallback auf "Gast"
             self.set_workout_user_by_id(GUEST_USER_ID, explicit=False)
 
     # ------------------------------------------------------------------
@@ -409,11 +451,9 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
         self.data.state = ha_state
         self.data.available = True
 
-        # NEU: Beginn einer neuen Trainingseinheit erkennen (auch bei Start direkt am Gerät)
         if ha_state in ACTIVE_WORKOUT_STATES and not self._session_in_progress:
             self._session_in_progress = True
             self._session_started_at = datetime.now(timezone.utc).isoformat()
-            # Wurde noch kein Benutzer für diese Einheit ausgewählt, auf "Gast" setzen
             if not self._user_assigned_for_current_session:
                 self.data.active_user_id = GUEST_USER_ID
                 self.data.active_user_name = GUEST_USER_NAME
@@ -433,7 +473,6 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
                 self.data.calories = round(((data[9] & 0xFF) | ((data[10] & 0xFF) << 8)) * 0.1, 1)
                 self.data.steps    = (data[11] & 0xFF) | ((data[12] & 0xFF) << 8)
         elif ha_state == STATE_IDLE:
-            # NEU: Abgeschlossenes Workout sichern, bevor die Live-Zähler auf 0 gesetzt werden
             if self._session_in_progress and (self.data.time > 0 or self.data.distance > 0):
                 record = WorkoutRecord(
                     user_id=self.data.active_user_id,
@@ -446,7 +485,9 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
                     ended_at=datetime.now(timezone.utc).isoformat(),
                 )
                 self.data.last_workout = record
-                # Event mit allen Workout-Daten und Benutzer in den HA-Eventbus schreiben
+                # NEU: Summen für den Benutzer (sofern nicht Gast) fortschreiben
+                self._record_workout_for_user(record)
+
                 self.hass.bus.async_fire(
                     EVENT_WORKOUT_COMPLETED,
                     {
@@ -456,7 +497,6 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
                     },
                 )
 
-            # NEU: Session-Flags für das nächste Workout zurücksetzen
             self._session_in_progress = False
             self._session_started_at = None
             self._user_assigned_for_current_session = False
@@ -498,14 +538,12 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
     # Control commands
     # ------------------------------------------------------------------
 
-    # GEÄNDERT: Akzeptiert optional den HA-Aufrufkontext und einen expliziten Benutzernamen
     async def async_start(
         self,
         context: Context | None = None,
         user_name: str | None = None,
     ) -> None:
         """Start the walking belt."""
-        # NEU: Benutzer entweder aus dem expliziten Parameter oder aus dem Aufrufkontext setzen
         if user_name:
             self.set_workout_user_by_name(user_name, explicit=True)
         else:
@@ -557,8 +595,4 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
     # Lifecycle
     # ------------------------------------------------------------------
 
-    async def async_disconnect(self) -> None:
-        """Disconnect cleanly on integration unload."""
-        if self._client and self._client.is_connected:
-            await self._client.disconnect()
-        self._client = None
+    async def async_disconnect(self
