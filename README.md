@@ -1,6 +1,5 @@
 # Sportstech WalkingPad – Home Assistant Integration (Fork)
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/github/license/Statusbit/ha-sportstech-walkingpad-integration)](LICENSE)
 
 > **Unofficial community integration (Personal Fork).**  
