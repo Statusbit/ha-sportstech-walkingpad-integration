@@ -190,7 +190,7 @@ TOTAL_SENSOR_DESCRIPTIONS: tuple[WalkingPadSensorDescription, ...] = (
 USER_TOTAL_METRICS: tuple[dict[str, Any], ...] = (
     {
         "metric": "distance",
-        "suffix": "Distanz",
+        "translation_key": "user_distance",
         "unit": UnitOfLength.METERS,
         "device_class": SensorDeviceClass.DISTANCE,
         "icon": None,
@@ -198,7 +198,7 @@ USER_TOTAL_METRICS: tuple[dict[str, Any], ...] = (
     },
     {
         "metric": "workout_time",
-        "suffix": "Trainingszeit",
+        "translation_key": "user_workout_time",
         "unit": UnitOfTime.MINUTES,
         "device_class": SensorDeviceClass.DURATION,
         "icon": None,
@@ -206,7 +206,7 @@ USER_TOTAL_METRICS: tuple[dict[str, Any], ...] = (
     },
     {
         "metric": "calories",
-        "suffix": "Kalorien",
+        "translation_key": "user_calories",
         "unit": "kcal",
         "device_class": None,
         "icon": "mdi:fire",
@@ -214,7 +214,7 @@ USER_TOTAL_METRICS: tuple[dict[str, Any], ...] = (
     },
     {
         "metric": "steps",
-        "suffix": "Schritte",
+        "translation_key": "user_steps",
         "unit": None,
         "device_class": None,
         "icon": "mdi:foot-print",
@@ -335,7 +335,6 @@ class WalkingPadLastWorkoutSensor(CoordinatorEntity[WalkingPadCoordinator], Sens
 
     _attr_has_entity_name = True
     _attr_translation_key = "last_workout"
-    _attr_name = "Last Workout"
     _attr_icon = "mdi:history"
     _attr_native_unit_of_measurement = UnitOfLength.METERS
     _attr_device_class = SensorDeviceClass.DISTANCE
@@ -363,7 +362,7 @@ class WalkingPadLastWorkoutSensor(CoordinatorEntity[WalkingPadCoordinator], Sens
 class WalkingPadUserTotalSensor(CoordinatorEntity[WalkingPadCoordinator], RestoreSensor):
     """Cumulative workout sensor for a specific HA user (excludes Guest)."""
 
-    _attr_has_entity_name = False
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(
@@ -381,7 +380,8 @@ class WalkingPadUserTotalSensor(CoordinatorEntity[WalkingPadCoordinator], Restor
 
         slug = _slug_user(user_name, user_id)
         self._attr_unique_id = f"{coordinator.mac}_user_{slug}_{self._metric}"
-        self._attr_name = f"{coordinator.device_name} {user_name} {metric_cfg['suffix']}"
+        self._attr_translation_key = metric_cfg["translation_key"]
+        self._attr_translation_placeholders = {"user_name": user_name}
         self._attr_native_unit_of_measurement = metric_cfg["unit"]
         self._attr_device_class = metric_cfg["device_class"]
         if metric_cfg["icon"]:
