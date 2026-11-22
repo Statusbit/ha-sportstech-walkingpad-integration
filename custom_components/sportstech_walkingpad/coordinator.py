@@ -206,7 +206,7 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
         self._param_ready = asyncio.Event()
         self.data: WalkingPadData = WalkingPadData()
 
-        # NEU: Kumulierte Summen pro HA-Benutzer (ohne Gast): user_id -> {metric: value}
+        # Kumulierte Summen pro HA-Benutzer (ohne Gast): user_id -> {metric: value}
         self.user_totals: dict[str, dict[str, float]] = {}
 
         # Wrap detection: device timer resets at 99 min 99 s (6039 s)
@@ -240,17 +240,25 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
         if value > totals[metric]:
             totals[metric] = value
 
-    def _record_workout_for_user(self, record: WorkoutRecord) -> None:
-        """Add completed workout metrics to the user's totals (skipping Guest)."""
+    def _add_record_to_user_totals(self, record: WorkoutRecord, sign: int = 1) -> None:
+        """Add (+1) or subtract (-1) a workout record on the user's totals (skips Guest)."""
         if record.user_id == GUEST_USER_ID:
             return
         totals = self.ensure_user_totals(record.user_id)
-        totals["distance"] = round(totals["distance"] + float(record.distance_m), 2)
-        totals["workout_time"] = round(
-            totals["workout_time"] + round(record.duration_s / 60, 2), 2
+        duration_min = record.duration_s / 60.0
+
+        totals["distance"] = max(
+            0.0, round(totals["distance"] + sign * float(record.distance_m), 2)
         )
-        totals["calories"] = round(totals["calories"] + float(record.calories), 2)
-        totals["steps"] = round(totals["steps"] + float(record.steps), 0)
+        totals["workout_time"] = max(
+            0.0, round(totals["workout_time"] + sign * duration_min, 4)
+        )
+        totals["calories"] = max(
+            0.0, round(totals["calories"] + sign * float(record.calories), 2)
+        )
+        totals["steps"] = max(
+            0.0, round(totals["steps"] + sign * float(record.steps), 0)
+        )
 
     async def async_refresh_users(self) -> None:
         """Load active non-system HA users minus excluded ones, plus Guest."""
@@ -300,23 +308,13 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
             self._user_assigned_for_current_session = True
 
         if not self._session_in_progress and self.data.last_workout is not None:
-            old_user_id = self.data.last_workout.user_id
+            rec = self.data.last_workout
+            old_user_id = rec.user_id
             if old_user_id != user_id:
-                rec = self.data.last_workout
-                # Falls das letzte Workout vorher einem echten Benutzer zugeordnet war,
-                # diesen Betrag wieder abziehen und auf den neuen Benutzer (falls nicht Gast) übertragen.
-                if old_user_id != GUEST_USER_ID and old_user_id in self.user_totals:
-                    old_t = self.user_totals[old_user_id]
-                    old_t["distance"] = max(0.0, round(old_t["distance"] - float(rec.distance_m), 2))
-                    old_t["workout_time"] = max(
-                        0.0, round(old_t["workout_time"] - round(rec.duration_s / 60, 2), 2)
-                    )
-                    old_t["calories"] = max(0.0, round(old_t["calories"] - float(rec.calories), 2))
-                    old_t["steps"] = max(0.0, round(old_t["steps"] - float(rec.steps), 0))
-
+                self._add_record_to_user_totals(rec, sign=-1)
                 rec.user_id = user_id
                 rec.user_name = user_name
-                self._record_workout_for_user(rec)
+                self._add_record_to_user_totals(rec, sign=1)
 
                 self.hass.bus.async_fire(
                     EVENT_WORKOUT_REASSIGNED,
@@ -459,19 +457,21 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
                 self.data.active_user_name = GUEST_USER_NAME
 
         if ha_state in DATA_STATES and len(data) > 15:
-            self.data.speed    = round((data[3] & 0xFF) * 0.1, 1)
-            self.data.incline  = data[4] & 0xFF
-            self.data.heart    = data[13] & 0xFF
+            self.data.speed = round((data[3] & 0xFF) * 0.1, 1)
+            self.data.incline = data[4] & 0xFF
+            self.data.heart = data[13] & 0xFF
 
             if ha_state == STATE_RUNNING:
                 raw_time = (data[5] & 0xFF) | ((data[6] & 0xFF) << 8)
                 if raw_time < self._raw_time:
                     self._time_offset += self._raw_time
                 self._raw_time = raw_time
-                self.data.time     = self._time_offset + raw_time
+                self.data.time = self._time_offset + raw_time
                 self.data.distance = (data[7] & 0xFF) | ((data[8] & 0xFF) << 8)
-                self.data.calories = round(((data[9] & 0xFF) | ((data[10] & 0xFF) << 8)) * 0.1, 1)
-                self.data.steps    = (data[11] & 0xFF) | ((data[12] & 0xFF) << 8)
+                self.data.calories = round(
+                    ((data[9] & 0xFF) | ((data[10] & 0xFF) << 8)) * 0.1, 1
+                )
+                self.data.steps = (data[11] & 0xFF) | ((data[12] & 0xFF) << 8)
         elif ha_state == STATE_IDLE:
             if self._session_in_progress and (self.data.time > 0 or self.data.distance > 0):
                 record = WorkoutRecord(
@@ -485,8 +485,7 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
                     ended_at=datetime.now(timezone.utc).isoformat(),
                 )
                 self.data.last_workout = record
-                # NEU: Summen für den Benutzer (sofern nicht Gast) fortschreiben
-                self._record_workout_for_user(record)
+                self._add_record_to_user_totals(record, sign=1)
 
                 self.hass.bus.async_fire(
                     EVENT_WORKOUT_COMPLETED,
@@ -595,4 +594,8 @@ class WalkingPadCoordinator(DataUpdateCoordinator[WalkingPadData]):
     # Lifecycle
     # ------------------------------------------------------------------
 
-    async def async_disconnect(self
+    async def async_disconnect(self) -> None:
+        """Disconnect cleanly on integration unload."""
+        if self._client and self._client.is_connected:
+            await self._client.disconnect()
+        self._client = None
