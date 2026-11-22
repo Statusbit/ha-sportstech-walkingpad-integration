@@ -2,26 +2,26 @@
   "config": {
     "step": {
       "confirm": {
-        "title": "Set up {name}",
-        "description": "Do you want to set up **{name}** ({mac})?",
+        "title": "Sportstech WalkingPad found",
+        "description": "Do you want to set up {name} ({mac})?",
         "data": {
           "excluded_users": "Exclude users (e.g. tablet, MQTT)"
         }
       },
       "manual": {
-        "title": "Set up WalkingPad manually",
+        "title": "Set up Sportstech WalkingPad",
         "data": {
-          "mac_address": "MAC Address",
-          "device_name": "Device Name",
+          "mac_address": "MAC address",
+          "device_name": "Device name",
           "excluded_users": "Exclude users (e.g. tablet, MQTT)"
         }
       }
     },
+    "error": {
+      "invalid_mac": "Invalid MAC address (format: AA:BB:CC:DD:EE:FF)"
+    },
     "abort": {
       "already_configured": "Device is already configured"
-    },
-    "error": {
-      "invalid_mac": "Invalid MAC address format (expected AA:BB:CC:DD:EE:FF)"
     }
   },
   "options": {
@@ -36,36 +36,92 @@
   },
   "entity": {
     "switch": {
-      "light": {"name": "Light"}
+      "light": {
+        "name": "Light"
+      }
     },
     "button": {
-      "start": {"name": "Start"},
-      "stop": {"name": "Stop"},
-      "pause": {"name": "Pause"}
+      "start": {
+        "name": "Start"
+      },
+      "stop": {
+        "name": "Stop"
+      },
+      "pause": {
+        "name": "Pause"
+      }
     },
     "number": {
-      "speed_control": {"name": "Speed"},
-      "incline_control": {"name": "Incline"}
+      "speed_control": {
+        "name": "Speed"
+      },
+      "incline_control": {
+        "name": "Incline"
+      }
     },
     "select": {
-      "workout_user": {"name": "Workout User"}
+      "workout_user": {
+        "name": "Workout User"
+      }
     },
     "sensor": {
-      "state": {"name": "State"},
-      "speed": {"name": "Speed"},
-      "incline": {"name": "Incline"},
-      "heart_rate": {"name": "Heart Rate"},
-      "workout_time": {"name": "Workout Time"},
-      "distance": {"name": "Distance"},
-      "calories": {"name": "Calories"},
-      "steps": {"name": "Steps"},
-      "last_workout": {"name": "Last Workout"},
-      "total_workout_time": {"name": "Total Workout Time"},
-      "total_distance": {"name": "Total Distance"},
-      "total_calories": {"name": "Total Calories"},
-      "total_steps": {"name": "Total Steps"},
-      "max_speed": {"name": "Max Speed"},
-      "max_incline": {"name": "Max Incline"}
+      "state": {
+        "name": "State"
+      },
+      "speed": {
+        "name": "Speed"
+      },
+      "incline": {
+        "name": "Incline"
+      },
+      "heart_rate": {
+        "name": "Heart Rate"
+      },
+      "workout_time": {
+        "name": "Workout Time"
+      },
+      "distance": {
+        "name": "Distance"
+      },
+      "calories": {
+        "name": "Calories"
+      },
+      "steps": {
+        "name": "Steps"
+      },
+      "last_workout": {
+        "name": "Last Workout"
+      },
+      "total_workout_time": {
+        "name": "Total Workout Time"
+      },
+      "total_distance": {
+        "name": "Total Distance"
+      },
+      "total_calories": {
+        "name": "Total Calories"
+      },
+      "total_steps": {
+        "name": "Total Steps"
+      },
+      "max_speed": {
+        "name": "Max Speed"
+      },
+      "max_incline": {
+        "name": "Max Incline"
+      },
+      "user_distance": {
+        "name": "{user_name} Distance"
+      },
+      "user_workout_time": {
+        "name": "{user_name} Workout Time"
+      },
+      "user_calories": {
+        "name": "{user_name} Calories"
+      },
+      "user_steps": {
+        "name": "{user_name} Steps"
+      }
     }
   }
 }
