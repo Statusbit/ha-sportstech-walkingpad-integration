@@ -36,36 +36,92 @@
   },
   "entity": {
     "switch": {
-      "light": {"name": "Beleuchtung"}
+      "light": {
+        "name": "Light"
+      }
     },
     "button": {
-      "start": {"name": "Start"},
-      "stop": {"name": "Stopp"},
-      "pause": {"name": "Pause"}
+      "start": {
+        "name": "Start"
+      },
+      "stop": {
+        "name": "Stop"
+      },
+      "pause": {
+        "name": "Pause"
+      }
     },
     "number": {
-      "speed_control": {"name": "Geschwindigkeit"},
-      "incline_control": {"name": "Neigung"}
+      "speed_control": {
+        "name": "Speed"
+      },
+      "incline_control": {
+        "name": "Incline"
+      }
     },
     "select": {
-      "workout_user": {"name": "Trainingsbenutzer"}
+      "workout_user": {
+        "name": "Workout User"
+      }
     },
     "sensor": {
-      "state": {"name": "Zustand"},
-      "speed": {"name": "Geschwindigkeit"},
-      "incline": {"name": "Neigung"},
-      "heart_rate": {"name": "Herzfrequenz"},
-      "workout_time": {"name": "Trainingszeit"},
-      "distance": {"name": "Distanz"},
-      "calories": {"name": "Kalorien"},
-      "steps": {"name": "Schritte"},
-      "last_workout": {"name": "Letztes Training"},
-      "total_workout_time": {"name": "Gesamte Trainingszeit"},
-      "total_distance": {"name": "Gesamtdistanz"},
-      "total_calories": {"name": "Gesamtkalorien"},
-      "total_steps": {"name": "Gesamtschritte"},
-      "max_speed": {"name": "Max. Geschwindigkeit"},
-      "max_incline": {"name": "Max. Neigung"}
+      "state": {
+        "name": "State"
+      },
+      "speed": {
+        "name": "Speed"
+      },
+      "incline": {
+        "name": "Incline"
+      },
+      "heart_rate": {
+        "name": "Heart Rate"
+      },
+      "workout_time": {
+        "name": "Workout Time"
+      },
+      "distance": {
+        "name": "Distance"
+      },
+      "calories": {
+        "name": "Calories"
+      },
+      "steps": {
+        "name": "Steps"
+      },
+      "last_workout": {
+        "name": "Last Workout"
+      },
+      "total_workout_time": {
+        "name": "Total Workout Time"
+      },
+      "total_distance": {
+        "name": "Total Distance"
+      },
+      "total_calories": {
+        "name": "Total Calories"
+      },
+      "total_steps": {
+        "name": "Total Steps"
+      },
+      "max_speed": {
+        "name": "Max Speed"
+      },
+      "max_incline": {
+        "name": "Max Incline"
+      },
+      "user_distance": {
+        "name": "{user_name} Distance"
+      },
+      "user_workout_time": {
+        "name": "{user_name} Workout Time"
+      },
+      "user_calories": {
+        "name": "{user_name} Calories"
+      },
+      "user_steps": {
+        "name": "{user_name} Steps"
+      }
     }
   }
 }
