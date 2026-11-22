@@ -3,13 +3,17 @@
     "step": {
       "confirm": {
         "title": "Set up {name}",
-        "description": "Do you want to set up **{name}** ({mac})?"
+        "description": "Do you want to set up **{name}** ({mac})?",
+        "data": {
+          "excluded_users": "Exclude users (e.g. tablet, MQTT)"
+        }
       },
       "manual": {
         "title": "Set up WalkingPad manually",
         "data": {
           "mac_address": "MAC Address",
-          "device_name": "Device Name"
+          "device_name": "Device Name",
+          "excluded_users": "Exclude users (e.g. tablet, MQTT)"
         }
       }
     },
@@ -18,6 +22,16 @@
     },
     "error": {
       "invalid_mac": "Invalid MAC address format (expected AA:BB:CC:DD:EE:FF)"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure WalkingPad users",
+        "data": {
+          "excluded_users": "Excluded Home Assistant users"
+        }
+      }
     }
   },
   "entity": {
@@ -33,6 +47,9 @@
       "speed_control": {"name": "Speed"},
       "incline_control": {"name": "Incline"}
     },
+    "select": {
+      "workout_user": {"name": "Workout User"}
+    },
     "sensor": {
       "state": {"name": "State"},
       "speed": {"name": "Speed"},
@@ -42,6 +59,7 @@
       "distance": {"name": "Distance"},
       "calories": {"name": "Calories"},
       "steps": {"name": "Steps"},
+      "last_workout": {"name": "Last Workout"},
       "total_workout_time": {"name": "Total Workout Time"},
       "total_distance": {"name": "Total Distance"},
       "total_calories": {"name": "Total Calories"},
