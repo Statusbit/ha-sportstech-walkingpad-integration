@@ -1,6 +1,14 @@
 start:
   name: Start Belt
   description: Start the WalkingPad belt.
+  # NEU: Optionaler Parameter, um beim Start direkt einen Benutzer festzulegen
+  fields:
+    user:
+      name: User
+      description: Optional workout user name (e.g. Flo or Gast).
+      required: false
+      selector:
+        text:
 
 stop:
   name: Stop Belt
@@ -39,3 +47,15 @@ set_incline:
           max: 15
           step: 1
           unit_of_measurement: "%"
+
+# NEU: Service zum Zuweisen eines Benutzers während oder nach dem Training
+assign_user:
+  name: Assign Workout User
+  description: Assign the active or last completed workout to a user.
+  fields:
+    user:
+      name: User
+      description: Display name of an allowed Home Assistant user or Gast.
+      required: true
+      selector:
+        text:
