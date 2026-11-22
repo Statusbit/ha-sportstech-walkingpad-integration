@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,7 +25,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, GUEST_USER_ID
 from .coordinator import WalkingPadCoordinator
 
 
@@ -182,6 +183,50 @@ TOTAL_SENSOR_DESCRIPTIONS: tuple[WalkingPadSensorDescription, ...] = (
     ),
 )
 
+# ---------------------------------------------------------------------------
+# Per-user lifetime sensors (excludes Guest; for statistics by user)
+# ---------------------------------------------------------------------------
+
+USER_TOTAL_METRICS: tuple[dict[str, Any], ...] = (
+    {
+        "metric": "distance",
+        "suffix": "Distanz",
+        "unit": UnitOfLength.METERS,
+        "device_class": SensorDeviceClass.DISTANCE,
+        "icon": None,
+        "precision": 0,
+    },
+    {
+        "metric": "workout_time",
+        "suffix": "Trainingszeit",
+        "unit": UnitOfTime.MINUTES,
+        "device_class": SensorDeviceClass.DURATION,
+        "icon": None,
+        "precision": 2,
+    },
+    {
+        "metric": "calories",
+        "suffix": "Kalorien",
+        "unit": "kcal",
+        "device_class": None,
+        "icon": "mdi:fire",
+        "precision": 1,
+    },
+    {
+        "metric": "steps",
+        "suffix": "Schritte",
+        "unit": None,
+        "device_class": None,
+        "icon": "mdi:foot-print",
+        "precision": 0,
+    },
+)
+
+
+def _slug_user(user_name: str, user_id: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", user_name.lower()).strip("_")
+    return slug or user_id[:8].lower()
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -190,12 +235,27 @@ async def async_setup_entry(
 ) -> None:
     """Set up WalkingPad sensor entities from a config entry."""
     coordinator: WalkingPadCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    user_entities: list[SensorEntity] = []
+    for uid, uname in coordinator.data.available_users.items():
+        if uid == GUEST_USER_ID:
+            continue
+        for metric_cfg in USER_TOTAL_METRICS:
+            user_entities.append(
+                WalkingPadUserTotalSensor(
+                    coordinator=coordinator,
+                    user_id=uid,
+                    user_name=uname,
+                    metric_cfg=metric_cfg,
+                )
+            )
+
     async_add_entities([
         *(WalkingPadSensor(coordinator, desc) for desc in SENSOR_DESCRIPTIONS),
         *(WalkingPadSensor(coordinator, desc) for desc in DIAGNOSTIC_SENSOR_DESCRIPTIONS),
         *(WalkingPadTotalSensor(coordinator, desc) for desc in TOTAL_SENSOR_DESCRIPTIONS),
-        # NEU: Sensor für das zuletzt abgeschlossene Workout (inkl. Benutzer-Attribut) hinzufügen
         WalkingPadLastWorkoutSensor(coordinator),
+        *user_entities,
     ])
 
 
@@ -270,7 +330,6 @@ class WalkingPadTotalSensor(CoordinatorEntity[WalkingPadCoordinator], RestoreSen
         self.async_write_ha_state()
 
 
-# NEU: Sensor-Klasse für das zuletzt abgeschlossene Training (schreibt Benutzer + Eckdaten als Attribute in die DB)
 class WalkingPadLastWorkoutSensor(CoordinatorEntity[WalkingPadCoordinator], SensorEntity):
     """Sensor holding the last completed workout and its assigned user."""
 
@@ -299,3 +358,60 @@ class WalkingPadLastWorkoutSensor(CoordinatorEntity[WalkingPadCoordinator], Sens
         if self.coordinator.data.last_workout is None:
             return None
         return self.coordinator.data.last_workout.as_dict()
+
+
+class WalkingPadUserTotalSensor(CoordinatorEntity[WalkingPadCoordinator], RestoreSensor):
+    """Cumulative workout sensor for a specific HA user (excludes Guest)."""
+
+    _attr_has_entity_name = False
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(
+        self,
+        coordinator: WalkingPadCoordinator,
+        user_id: str,
+        user_name: str,
+        metric_cfg: dict[str, Any],
+    ) -> None:
+        super().__init__(coordinator)
+        self._user_id = user_id
+        self._user_name = user_name
+        self._metric: str = metric_cfg["metric"]
+        self._precision: int = metric_cfg["precision"]
+
+        slug = _slug_user(user_name, user_id)
+        self._attr_unique_id = f"{coordinator.mac}_user_{slug}_{self._metric}"
+        self._attr_name = f"{coordinator.device_name} {user_name} {metric_cfg['suffix']}"
+        self._attr_native_unit_of_measurement = metric_cfg["unit"]
+        self._attr_device_class = metric_cfg["device_class"]
+        if metric_cfg["icon"]:
+            self._attr_icon = metric_cfg["icon"]
+        if self._precision > 0:
+            self._attr_suggested_display_precision = self._precision
+        self._attr_device_info = _device_info(coordinator)
+
+        self.coordinator.ensure_user_totals(self._user_id)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_data = await self.async_get_last_sensor_data()
+        if last_data and last_data.native_value is not None:
+            try:
+                restored_val = float(last_data.native_value)
+                self.coordinator.set_restored_user_total(
+                    self._user_id, self._metric, restored_val
+                )
+            except (TypeError, ValueError):
+                pass
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def native_value(self) -> float | int:
+        totals = self.coordinator.user_totals.get(self._user_id)
+        val = totals.get(self._metric, 0.0) if totals else 0.0
+        if self._precision == 0:
+            return int(round(val))
+        return round(float(val), self._precision)
