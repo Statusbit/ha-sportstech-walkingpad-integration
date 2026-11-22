@@ -194,6 +194,8 @@ async def async_setup_entry(
         *(WalkingPadSensor(coordinator, desc) for desc in SENSOR_DESCRIPTIONS),
         *(WalkingPadSensor(coordinator, desc) for desc in DIAGNOSTIC_SENSOR_DESCRIPTIONS),
         *(WalkingPadTotalSensor(coordinator, desc) for desc in TOTAL_SENSOR_DESCRIPTIONS),
+        # NEU: Sensor für das zuletzt abgeschlossene Workout (inkl. Benutzer-Attribut) hinzufügen
+        WalkingPadLastWorkoutSensor(coordinator),
     ])
 
 
@@ -236,13 +238,7 @@ class WalkingPadSensor(CoordinatorEntity[WalkingPadCoordinator], SensorEntity):
 
 
 class WalkingPadTotalSensor(CoordinatorEntity[WalkingPadCoordinator], RestoreSensor):
-    """Lifetime accumulator sensor.
-
-    Adds each completed session's value to a running total.
-    A session end is detected when the coordinator resets the metric to 0
-    after it was non-zero (belt stopped). The total is restored across
-    HA restarts via RestoreSensor.
-    """
+    """Lifetime accumulator sensor."""
 
     entity_description: WalkingPadSensorDescription
     _attr_has_entity_name = True
@@ -269,7 +265,37 @@ class WalkingPadTotalSensor(CoordinatorEntity[WalkingPadCoordinator], RestoreSen
     def _handle_coordinator_update(self) -> None:
         current = float(self.entity_description.value_fn(self.coordinator.data) or 0)
         if self._last_session_value > 0 and current == 0:
-            # Session ended: commit the last known session value to the total
             self._attr_native_value = (self._attr_native_value or 0) + self._last_session_value
         self._last_session_value = current
         self.async_write_ha_state()
+
+
+# NEU: Sensor-Klasse für das zuletzt abgeschlossene Training (schreibt Benutzer + Eckdaten als Attribute in die DB)
+class WalkingPadLastWorkoutSensor(CoordinatorEntity[WalkingPadCoordinator], SensorEntity):
+    """Sensor holding the last completed workout and its assigned user."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "last_workout"
+    _attr_name = "Last Workout"
+    _attr_icon = "mdi:history"
+    _attr_native_unit_of_measurement = UnitOfLength.METERS
+    _attr_device_class = SensorDeviceClass.DISTANCE
+
+    def __init__(self, coordinator: WalkingPadCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.mac}_last_workout"
+        self._attr_device_info = _device_info(coordinator)
+
+    @property
+    def native_value(self) -> int | None:
+        """Return distance of the last workout as primary sensor state."""
+        if self.coordinator.data.last_workout is None:
+            return None
+        return self.coordinator.data.last_workout.distance_m
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return user, duration, calories, steps and timestamps as DB attributes."""
+        if self.coordinator.data.last_workout is None:
+            return None
+        return self.coordinator.data.last_workout.as_dict()
